@@ -1,0 +1,1 @@
+{"features": ["suhu_c", "curah_hujan_mm", "kode_cuaca", "hour", "dayofweek", "is_weekend"], "best_model": "XGBoost"}
