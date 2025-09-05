@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final result = await _apiService.getPrediction(
         DateTime.parse(datetime),
         suhu,
-        hujan, // kelembaban (sementara pakai hujan)
+        hujan, // curah hujan dalam mm
         1013.25, // tekanan udara default
         10.0, // kecepatan angin default
         kodeCuaca,

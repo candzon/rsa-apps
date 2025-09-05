@@ -6,7 +6,7 @@ class ApiService {
   Future<Map<String, dynamic>> getPrediction(
     DateTime datetime,
     double suhuC,
-    double kelembabanPersen,
+    double curahHujanMm,
     double tekananUdaraHpa,
     double kecepatanAnginKmh,
     int kodeCuaca,
@@ -23,7 +23,7 @@ class ApiService {
             body: jsonEncode({
               "datetime": datetime.toIso8601String(),
               "suhu_c": suhuC,
-              "kelembaban_persen": kelembabanPersen,
+              "curah_hujan_mm": curahHujanMm,
               "tekanan_udara_hpa": tekananUdaraHpa,
               "kecepatan_angin_kmh": kecepatanAnginKmh,
               "kode_cuaca": kodeCuaca,
