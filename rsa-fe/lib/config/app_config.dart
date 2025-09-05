@@ -1,8 +1,26 @@
+import '../services/settings_service.dart';
+
 class AppConfig {
-  // Konfigurasi API - Menggunakan ngrok
+  // Konfigurasi API - Default URL (akan dioverride oleh settings)
   static const String defaultBackendUrl =
-      'https://edd9f2c89701.ngrok-free.app'; // Base URL ngrok
+      'https://edd9f2c89701.ngrok-free.app'; // Base URL ngrok default
   static const String predictEndpoint = '/predict';
+
+  // Method untuk mendapatkan backend URL dari SettingsService
+  static Future<String> getBackendUrl() async {
+    try {
+      final settingsService = SettingsService();
+      return await settingsService.getBackendUrl();
+    } catch (e) {
+      return defaultBackendUrl; // fallback ke default jika error
+    }
+  }
+
+  // Method untuk mendapatkan full API URL
+  static Future<String> getApiUrl() async {
+    final baseUrl = await getBackendUrl();
+    return '$baseUrl$predictEndpoint';
+  }
 
   // Konfigurasi Database
   static const String databaseName = 'predictions.db';
@@ -52,11 +70,5 @@ class AppConfig {
       }
     }
     return 'Tidak Diketahui';
-  }
-
-  // Helper method untuk mendapatkan full API URL
-  static String getApiUrl({String? customUrl}) {
-    final baseUrl = customUrl ?? defaultBackendUrl;
-    return '$baseUrl$predictEndpoint';
   }
 }

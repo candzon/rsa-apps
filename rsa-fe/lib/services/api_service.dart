@@ -3,14 +3,17 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 
 class ApiService {
-  static Future<Map<String, dynamic>> getPrediction({
-    required String datetime,
-    required double suhuC,
-    required double curahHujanMm,
-    required int kodeCuaca,
-    String? backendUrl,
-  }) async {
-    final url = Uri.parse(AppConfig.getApiUrl(customUrl: backendUrl));
+  Future<Map<String, dynamic>> getPrediction(
+    DateTime datetime,
+    double suhuC,
+    double kelembabanPersen,
+    double tekananUdaraHpa,
+    double kecepatanAnginKmh,
+    int kodeCuaca,
+  ) async {
+    // Mendapatkan URL dari AppConfig yang sudah terintegrasi dengan SettingsService
+    final apiUrl = await AppConfig.getApiUrl();
+    final url = Uri.parse(apiUrl);
 
     try {
       final response = await http
@@ -18,9 +21,11 @@ class ApiService {
             url,
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({
-              "datetime": datetime,
+              "datetime": datetime.toIso8601String(),
               "suhu_c": suhuC,
-              "curah_hujan_mm": curahHujanMm,
+              "kelembaban_persen": kelembabanPersen,
+              "tekanan_udara_hpa": tekananUdaraHpa,
+              "kecepatan_angin_kmh": kecepatanAnginKmh,
               "kode_cuaca": kodeCuaca,
             }),
           )

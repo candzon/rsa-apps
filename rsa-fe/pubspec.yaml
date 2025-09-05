@@ -38,6 +38,9 @@ dependencies:
   # HTTP client for API calls
   http: ^1.2.0
   
+  # SharedPreferences untuk menyimpan settings
+  shared_preferences: ^2.2.2
+  
   # SQLite database
   sqflite: ^2.3.0
   path_provider: ^2.1.0

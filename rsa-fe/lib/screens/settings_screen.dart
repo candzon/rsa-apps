@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../config/app_config.dart';
+import '../services/settings_service.dart';
 import '../services/api_service.dart';
+import '../config/app_config.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,50 +11,121 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _ipController = TextEditingController();
-  bool _isTestingConnection = false;
-  String? _connectionStatus;
+  final TextEditingController _urlController = TextEditingController();
+  final SettingsService _settingsService = SettingsService();
+  final ApiService _apiService = ApiService();
+  bool _isLoading = false;
+  bool _isTesting = false;
 
   @override
   void initState() {
     super.initState();
-    _ipController.text = AppConfig.defaultBackendUrl;
+    _loadCurrentUrl();
+  }
+
+  Future<void> _loadCurrentUrl() async {
+    final currentUrl = await _settingsService.getBackendUrl();
+    setState(() {
+      _urlController.text = currentUrl;
+    });
+  }
+
+  Future<void> _saveUrl() async {
+    final url = _urlController.text.trim();
+
+    if (url.isEmpty) {
+      _showSnackBar('URL tidak boleh kosong', Colors.red);
+      return;
+    }
+
+    if (!_settingsService.isValidUrl(url)) {
+      _showSnackBar(
+        'Format URL tidak valid. Gunakan http:// atau https://',
+        Colors.red,
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _settingsService.setBackendUrl(url);
+      _showSnackBar('URL backend berhasil disimpan', Colors.green);
+    } catch (e) {
+      _showSnackBar('Gagal menyimpan URL: $e', Colors.red);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _testConnection() async {
+    final url = _urlController.text.trim();
+
+    if (url.isEmpty) {
+      _showSnackBar('URL tidak boleh kosong', Colors.red);
+      return;
+    }
+
+    if (!_settingsService.isValidUrl(url)) {
+      _showSnackBar('Format URL tidak valid', Colors.red);
+      return;
+    }
+
+    setState(() => _isTesting = true);
+
+    // Store original URL for restoration if test fails
+    String? originalUrl;
+
+    try {
+      originalUrl = await _settingsService.getBackendUrl();
+
+      // Temporary set URL for testing
+      await _settingsService.setBackendUrl(url);
+
+      // Test with dummy data
+      await _apiService.getPrediction(
+        DateTime.now(),
+        25.0,
+        60.0,
+        1013.25,
+        10.0,
+        1,
+      );
+
+      _showSnackBar('Koneksi berhasil! Server dapat diakses', Colors.green);
+    } catch (e) {
+      _showSnackBar('Koneksi gagal: ${e.toString()}', Colors.red);
+      // Restore original URL if test failed and we have it
+      if (originalUrl != null) {
+        await _settingsService.setBackendUrl(originalUrl);
+      }
+    } finally {
+      setState(() => _isTesting = false);
+    }
+  }
+
+  Future<void> _resetToDefault() async {
+    setState(() {
+      _urlController.text = _settingsService.getDefaultUrl();
+    });
+    await _settingsService.resetBackendUrl();
+    _showSnackBar('URL direset ke default', Colors.blue);
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _ipController.dispose();
+    _urlController.dispose();
     super.dispose();
-  }
-
-  Future<void> _testConnection() async {
-    setState(() {
-      _isTestingConnection = true;
-      _connectionStatus = null;
-    });
-
-    try {
-      // Test dengan data dummy
-      await ApiService.getPrediction(
-        datetime: '2024-01-15 14:30:00',
-        suhuC: 25.0,
-        curahHujanMm: 0.0,
-        kodeCuaca: 0, // Cerah
-        backendUrl: _ipController.text.isEmpty ? null : _ipController.text,
-      );
-
-      setState(() {
-        _connectionStatus = 'Koneksi berhasil! ✅';
-      });
-    } catch (e) {
-      setState(() {
-        _connectionStatus = 'Koneksi gagal: ${e.toString()}';
-      });
-    } finally {
-      setState(() {
-        _isTestingConnection = false;
-      });
-    }
   }
 
   @override
@@ -61,203 +133,174 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pengaturan'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // API Configuration Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Konfigurasi Backend',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              const Text(
+                'URL Backend Server',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: _urlController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'https://your-backend-url.com',
+                  prefixIcon: Icon(Icons.link),
+                  helperText:
+                      'Masukkan URL lengkap dengan http:// atau https://',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+
+              const SizedBox(height: 20),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading || _isTesting ? null : _saveUrl,
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save),
+                      label: Text(_isLoading ? 'Menyimpan...' : 'Simpan'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading || _isTesting
+                          ? null
+                          : _testConnection,
+                      icon: _isTesting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.wifi_find),
+                      label: Text(_isTesting ? 'Testing...' : 'Test Koneksi'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading || _isTesting ? null : _resetToDefault,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reset ke Default'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  border: Border.all(color: Colors.blue.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Konfigurasi API Backend',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _ipController,
-                      decoration: const InputDecoration(
-                        labelText: 'Backend URL',
-                        hintText: 'https://3ec5f59f3fbf.ngrok-free.app',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.link),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Endpoint: ${AppConfig.predictEndpoint}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Text(
-                      'Endpoint: ${AppConfig.predictEndpoint}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isTestingConnection
-                            ? null
-                            : _testConnection,
-                        icon: _isTestingConnection
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.wifi_find),
-                        label: Text(
-                          _isTestingConnection ? 'Testing...' : 'Test Koneksi',
-                        ),
-                      ),
-                    ),
-                    if (_connectionStatus != null) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _connectionStatus!.contains('berhasil')
-                              ? Colors.green.shade50
-                              : Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: _connectionStatus!.contains('berhasil')
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                        ),
-                        child: Text(
-                          _connectionStatus!,
+                    Row(
+                      children: [
+                        Icon(Icons.info, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Informasi',
                           style: TextStyle(
-                            color: _connectionStatus!.contains('berhasil')
-                                ? Colors.green.shade800
-                                : Colors.red.shade800,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade700,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '• URL harus dimulai dengan http:// atau https://\n'
+                      '• Gunakan "Test Koneksi" untuk memverifikasi server\n'
+                      '• Pengaturan akan tersimpan secara otomatis\n'
+                      '• Default: ngrok tunnel URL',
+                      style: TextStyle(fontSize: 14),
+                    ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
 
-            // App Info Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+              const SizedBox(height: 20),
+
+              // App info section yang sederhana
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  border: Border.all(color: Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Informasi Aplikasi',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInfoRow('Nama Aplikasi', AppConfig.appTitle),
-                    _buildInfoRow(
-                      'Timeout API',
-                      '${AppConfig.apiTimeoutSeconds} detik',
-                    ),
-                    _buildInfoRow('Database', AppConfig.databaseName),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Indikator Prediksi',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade700,
+                        fontSize: 16,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    _buildIndicatorRow(
-                      'Rendah',
-                      '0-${AppConfig.lowThreshold.round()}',
-                      Colors.green,
-                    ),
-                    _buildIndicatorRow(
-                      'Sedang',
-                      '${(AppConfig.lowThreshold + 1).round()}-${AppConfig.mediumThreshold.round()}',
-                      Colors.orange,
-                    ),
-                    _buildIndicatorRow(
-                      'Tinggi',
-                      '>${AppConfig.mediumThreshold.round()}',
-                      Colors.red,
-                    ),
+                    Text('Aplikasi: ${AppConfig.appTitle}'),
+                    Text('Database: ${AppConfig.databaseName}'),
+                    Text('Timeout API: ${AppConfig.apiTimeoutSeconds}s'),
+                    Text('Endpoint: ${AppConfig.predictEndpoint}'),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
 
-            // Instructions Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Petunjuk Penggunaan',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      '1. Pastikan server FastAPI backend berjalan\n'
-                      '2. Atur Backend URL (ngrok atau IP:port) di atas\n'
-                      '3. Klik "Test Koneksi" untuk memastikan koneksi berhasil\n'
-                      '4. Gunakan halaman Home untuk melakukan prediksi\n'
-                      '5. Lihat riwayat prediksi di halaman History',
-                      style: TextStyle(height: 1.5),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+              const SizedBox(height: 20), // Add some bottom padding
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIndicatorRow(String level, String range, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Row(
-        children: [
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          Text('$level: $range permintaan/jam'),
-        ],
       ),
     );
   }

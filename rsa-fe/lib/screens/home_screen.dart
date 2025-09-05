@@ -14,6 +14,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
+  final ApiService _apiService = ApiService(); // Instance method
 
   Future<void> _onPredictionSubmit(
     String datetime,
@@ -26,12 +27,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // Call API untuk prediksi
-      final result = await ApiService.getPrediction(
-        datetime: datetime,
-        suhuC: suhu,
-        curahHujanMm: hujan,
-        kodeCuaca: kodeCuaca,
+      // Call API untuk prediksi menggunakan instance method
+      final result = await _apiService.getPrediction(
+        DateTime.parse(datetime),
+        suhu,
+        hujan, // kelembaban (sementara pakai hujan)
+        1013.25, // tekanan udara default
+        10.0, // kecepatan angin default
+        kodeCuaca,
       );
 
       // Buat object Prediction
