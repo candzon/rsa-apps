@@ -1,7 +1,7 @@
 class AppConfig {
   // Konfigurasi API - Menggunakan ngrok
   static const String defaultBackendUrl =
-      'https://3ec5f59f3fbf.ngrok-free.app'; // Base URL ngrok
+      'https://edd9f2c89701.ngrok-free.app'; // Base URL ngrok
   static const String predictEndpoint = '/predict';
 
   // Konfigurasi Database
